@@ -69,6 +69,7 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
             pass
     if error:
         exit(1)
+    logger.info("{}: Completed tile set {}".format(i, output_path))
     return True
 
 
