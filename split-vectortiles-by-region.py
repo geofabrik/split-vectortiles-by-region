@@ -14,14 +14,14 @@ import yaml
 logger = None
 
 
-def run_cmd(args, i, shell=False):
+def run_cmd(args, i, shell=False, cwd=None):
     args_for_print = ""
     if type(args) is list:
         args_for_print = " ".join(args)
     else:
         args_for_print = args
     logger.debug("{}: {}".format(i, args_for_print))
-    r = subprocess.run(args, shell=shell)
+    r = subprocess.run(args, shell=shell, cwd=cwd)
     if r.returncode != 0:
         logger.error("{}: Command returned with code {}. Command was:\n{}".format(i, r.returncode, args_for_print))
         r.check_returncode()
@@ -50,7 +50,7 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
         output_filename = "{}-shortbread.tar.gz".format(os.path.join(output_base_dir, output_path))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         opts = {
-            "polygon_to_tile_list": shlex.quote(polygon_to_tile_list),
+            "polygon_to_tile_list": shlex.quote(os.path.abspath(polygon_to_tile_list)),
             "geojson_path": shlex.quote(geojson_path),
             "input_dir": shlex.quote(input_dir),
             "output_filename": shlex.quote(output_filename),
@@ -59,8 +59,8 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
             "suffix": shlex.quote(suffix),
         }
         logger.info("{}: Creating tile set {}".format(i, output_path))
-        args = "{polygon_to_tile_list} -c -d {input_dir} -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -C {input_dir} -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
-        run_cmd(args, i, True)
+        args = "{polygon_to_tile_list} -c -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
+        run_cmd(args, i, True, input_dir)
     except subprocess.CalledProcessError:
         error = True
     finally:
