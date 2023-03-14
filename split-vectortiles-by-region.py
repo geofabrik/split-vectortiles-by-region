@@ -14,14 +14,14 @@ import yaml
 logger = None
 
 
-def run_cmd(args, i, shell=False, cwd=None):
+def run_cmd(args, i, shell=False, cwd=None, env=None):
     args_for_print = ""
     if type(args) is list:
         args_for_print = " ".join(args)
     else:
         args_for_print = args
     logger.debug("{}: {}".format(i, args_for_print))
-    r = subprocess.run(args, shell=shell, cwd=cwd)
+    r = subprocess.run(args, shell=shell, cwd=cwd, env=env)
     if r.returncode != 0:
         logger.error("{}: Command returned with code {}. Command was:\n{}".format(i, r.returncode, args_for_print))
         r.check_returncode()
@@ -60,7 +60,7 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
         }
         logger.info("{}: Creating tile set {}".format(i, output_path))
         args = "{polygon_to_tile_list} -c -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
-        run_cmd(args, i, True, input_dir)
+        run_cmd(args, i, True, input_dir, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"})
     except subprocess.CalledProcessError:
         error = True
     finally:
