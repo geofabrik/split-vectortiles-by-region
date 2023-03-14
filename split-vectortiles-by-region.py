@@ -59,7 +59,7 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
             "suffix": shlex.quote(suffix),
         }
         logger.info("{}: Creating tile set {}".format(i, output_path))
-        args = "{polygon_to_tile_list} -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -C {input_dir} -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
+        args = "{polygon_to_tile_list} -c -d {input_dir} -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -C {input_dir} -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
         run_cmd(args, i, True)
     except subprocess.CalledProcessError:
         error = True
