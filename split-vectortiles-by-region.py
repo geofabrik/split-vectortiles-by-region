@@ -59,7 +59,7 @@ def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_p
             "suffix": shlex.quote(suffix),
         }
         logger.info("{}: Creating tile set {}".format(i, output_path))
-        args = "{polygon_to_tile_list} -c -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --files-from=- | gzip -1 > {output_filename}".format(**opts)
+        args = "{polygon_to_tile_list} -c -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --owner=0 --group=0 --files-from=- | gzip -1 > {output_filename}".format(**opts)
         run_cmd(args, i, True, input_dir, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"})
     except subprocess.CalledProcessError:
         error = True
