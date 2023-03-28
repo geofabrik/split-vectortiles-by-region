@@ -27,6 +27,56 @@ def run_cmd(args, i, shell=False, cwd=None, env=None):
         r.check_returncode()
 
 
+def merge_bounding_boxes(bbox1, bbox2):
+    return [
+        min(bbox1[0], bbox2[0]),
+        min(bbox1[1], bbox2[1]),
+        max(bbox1[2], bbox2[2]),
+        max(bbox1[3], bbox2[3]),
+    ]
+
+
+def add_to_bbox(bbox, x, y):
+    return [
+        min(bbox[0], x),
+        min(bbox[1], y),
+        max(bbox[2], x),
+        max(bbox[3], y),
+    ]
+
+
+def bbox_of_ring(ring):
+    bbox = [181.0, 91.0, -181.0, -91.0]
+    for elem in ring:
+        if type(elem) is list and type(elem[0]) is float:
+            bbox = add_to_bbox(bbox, elem[0], elem[1])
+        elif type(elem) is list:
+            bbox = merge_bounding_boxes(bbox, bbox_of_ring(elem))
+    return bbox
+
+
+def get_bbox(geometry):
+    """Get bounding box from geometry.
+    """
+    return bbox_of_ring(geometry["coordinates"])
+
+
+def write_metadata_json(input_dir, geometry):
+    """Write updated metadata.json file. This function alters the bounding box and adds data source and attribution.
+    """
+    metadata = {}
+    with open(os.path.join(input_dir, "metadata.json"), "r") as infile:
+        metadata = json.load(infile)
+    metadata["name"] = "Shortbread"
+    metadata["attribution"] = "OpenStreetMap contributors (ODbL)"
+    metadata["bounds"] = get_bbox(geometry)
+    path = None
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmpfile:
+        json.dump(metadata, tmpfile)
+        path = tmpfile.name
+    return path
+
+
 def write_geojson_feature(feature):
     """Write GeoJSON feature to a named temporary file and return its path.
     """
@@ -41,32 +91,49 @@ def write_geojson_feature(feature):
     return path
 
 
+def remove_leading_slash(path):
+    if path and path[0] == "/":
+        return path[1:]
+    return path
+
+
+def delete_if_exists(path):
+    if not path:
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
     try:
         geojson_path = write_geojson_feature(geojson_feature)
+        metadata_path = write_metadata_json(input_dir, geojson_feature["geometry"])
         output_filename = "{}-shortbread.tar.gz".format(os.path.join(output_base_dir, output_path))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         opts = {
             "polygon_to_tile_list": shlex.quote(os.path.abspath(polygon_to_tile_list)),
             "geojson_path": shlex.quote(geojson_path),
             "input_dir": shlex.quote(input_dir),
+            "metadata_path": shlex.quote(metadata_path),
+            "metadata_path_for_regex": shlex.quote(remove_leading_slash(metadata_path)),
             "output_filename": shlex.quote(output_filename),
             "minzoom": shlex.quote(str(minzoom)),
             "maxzoom": shlex.quote(str(maxzoom)),
             "suffix": shlex.quote(suffix),
         }
         logger.info("{}: Creating tile set {}".format(i, output_path))
-        args = "{polygon_to_tile_list} -c -n -a metadata.json -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --owner=0 --group=0 --files-from=- | gzip -1 > {output_filename}".format(**opts)
+        args = "{polygon_to_tile_list} -c -n -a {metadata_path} -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --owner=0 --group=0 --transform='flags=r;s|{metadata_path_for_regex}|metadata.json|' --files-from=- | gzip -1 > {output_filename}".format(**opts)
         run_cmd(args, i, True, input_dir, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"})
     except subprocess.CalledProcessError:
         error = True
     finally:
-        if geojson_path:
-            os.remove(geojson_path)
-            pass
+        delete_if_exists(geojson_path)
+        delete_if_exists(metadata_path)
     if error:
         exit(1)
     logger.info("{}: Completed tile set {}".format(i, output_path))
