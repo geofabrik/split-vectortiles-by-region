@@ -106,14 +106,14 @@ def delete_if_exists(path):
         pass
 
 
-def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix):
+def create_tileset(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
     try:
         geojson_path = write_geojson_feature(geojson_feature)
         metadata_path = write_metadata_json(input_dir, geojson_feature["geometry"])
-        output_filename = "{}-shortbread.tar.gz".format(os.path.join(output_base_dir, output_path))
+        output_filename = "{}-shortbread-{}.tar.gz".format(os.path.join(output_base_dir, output_path), shortbread_version)
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         opts = {
             "polygon_to_tile_list": shlex.quote(os.path.abspath(polygon_to_tile_list)),
@@ -186,6 +186,7 @@ if args.suffix is not None and not args.suffix.startswith("."):
 
 logging.debug("Loading configuration")
 config = yaml.safe_load(args.config)
+shortbread_version = config["shortbread_version"]
 requested_regions = config["polygons"]
 if type(requested_regions) is not list or len(requested_regions) == 0:
     logging.error("Configuration is invalid, 'polyogns' not found or an empty list.")
@@ -210,7 +211,7 @@ for polygon in requested_regions:
         else:
             logger.warning(msg)
     polygon_path = polygon["path"]
-    tasks.append((i, args.tilelist, args.input, args.output, polygon_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix))
+    tasks.append((i, args.tilelist, args.input, args.output, polygon_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix, shortbread_version))
     i += 1
 
 logger.info("Processing {} regions".format(len(tasks)))
