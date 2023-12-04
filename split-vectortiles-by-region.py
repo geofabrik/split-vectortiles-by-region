@@ -14,6 +14,7 @@ import yaml
 
 
 logger = None
+DEFAULT_MAP_ZOOM = 7
 
 
 def run_cmd(args, i, shell=False, cwd=None, env=None, check_output=False):
@@ -66,6 +67,12 @@ def get_bbox(geometry):
     return bbox_of_ring(geometry["coordinates"])
 
 
+def get_center(bbox):
+    """Get center from bbox (just half of width and height).
+    """
+    return [0.5 * (bbox[2] - bbox[0]) + bbox[0], 0.5 * (bbox[3] - bbox[1]) + bbox[1], DEFAULT_MAP_ZOOM]
+
+
 def write_metadata_json(input_dir, geometry):
     """Write updated metadata.json file. This function alters the bounding box and adds data source and attribution.
     """
@@ -74,7 +81,9 @@ def write_metadata_json(input_dir, geometry):
         metadata = json.load(infile)
     metadata["name"] = "Shortbread"
     metadata["attribution"] = "OpenStreetMap contributors (ODbL)"
-    metadata["bounds"] = get_bbox(geometry)
+    bbox = get_bbox(geometry)
+    metadata["bounds"] = bbox
+    metadata["center"] = get_center(bbox)
     path = None
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tmpfile:
         json.dump(metadata, tmpfile)
@@ -135,6 +144,7 @@ def create_mbtiles(input_path, output_path, tile_list, bbox):
         logger.warning("Deleting and rewriting {}".format(output_path))
         os.remove(output_path)
     bbox_str = ",".join([str(b) for b in bbox])
+    center_str = ",".join([str(c) for c in get_center(bbox)])
     exit_prog = False
     conn = None
     cur = None
@@ -158,8 +168,9 @@ def create_mbtiles(input_path, output_path, tile_list, bbox):
         cur.execute("CREATE UNIQUE INDEX tile_index on tiles (zoom_level, tile_column, tile_row);")
         conn.commit()
         logger.debug("creating metadata table")
-        cur.execute("CREATE TABLE metadata AS SELECT name, value FROM source.metadata WHERE name != 'bounds';")
+        cur.execute("CREATE TABLE metadata AS SELECT name, value FROM source.metadata WHERE name NOT IN ('bounds', 'center');")
         cur.execute("INSERT INTO metadata (name, value) VALUES ('bounds', ?)", (bbox_str,))
+        cur.execute("INSERT INTO metadata (name, value) VALUES ('center', ?)", (center_str,))
         conn.commit()
         logger.debug("detach source db")
         cur.execute("DETACH DATABASE source;")
