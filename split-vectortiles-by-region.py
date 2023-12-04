@@ -128,12 +128,13 @@ def convert_tile_list(tile_list):
     return result
 
 
-def create_mbtiles(input_path, output_path, tile_list):
+def create_mbtiles(input_path, output_path, tile_list, bbox):
     """Create an MBTiles by copying tiles and metadata from an existing database.
     """
     if os.path.isfile(output_path):
         logger.warning("Deleting and rewriting {}".format(output_path))
         os.remove(output_path)
+    bbox_str = ",".join([str(b) for b in bbox])
     exit_prog = False
     conn = None
     cur = None
@@ -157,8 +158,8 @@ def create_mbtiles(input_path, output_path, tile_list):
         cur.execute("CREATE UNIQUE INDEX tile_index on tiles (zoom_level, tile_column, tile_row);")
         conn.commit()
         logger.debug("creating metadata table")
-        cur.execute("CREATE TABLE metadata AS SELECT name, value FROM source.metadata;")
-        #TODO update bounds
+        cur.execute("CREATE TABLE metadata AS SELECT name, value FROM source.metadata WHERE name != 'bounds';")
+        cur.execute("INSERT INTO metadata (name, value) VALUES ('bounds', ?)", (bbox_str,))
         conn.commit()
         logger.debug("detach source db")
         cur.execute("DETACH DATABASE source;")
@@ -181,6 +182,7 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
     geojson_path = None
     try:
         geojson_path = write_geojson_feature(geojson_feature)
+        bbox = get_bbox(geojson_feature["geometry"])
         output_filename = "{}-shortbread-{}.mbtiles".format(os.path.join(output_base_dir, output_path), shortbread_version)
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         logger.info("{}: Creating tile set {}".format(i, output_path))
@@ -190,7 +192,7 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
             cwd = "."
         tile_list = run_cmd(args, i, False, cwd, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"}, True)
         tile_list = convert_tile_list(tile_list)
-        create_mbtiles(input_path, output_filename, tile_list)
+        create_mbtiles(input_path, output_filename, tile_list, bbox)
     except subprocess.CalledProcessError:
         error = True
     finally:
