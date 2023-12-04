@@ -152,27 +152,22 @@ def create_mbtiles(input_path, output_path, tile_list, bbox):
         conn = sqlite3.connect(output_path)
         cur = conn.cursor()
         #TODO escape filename
-        logger.debug("setting pragmas")
         cur.execute("PRAGMA auto_vacuum = 0;")
         cur.execute("PRAGMA cache_size = -1048576;") # 2 GiB cache
         cur.execute("PRAGMA journal_mode = OFF;")
         cur.execute("PRAGMA synchronous = OFF;")
         conn.commit()
         cur.execute("ATTACH DATABASE '{}' AS source;".format(input_path))
-        logger.debug("filling tiles table")
         cur.execute("CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob);")
         for tile in tile_list:
             cur.execute("INSERT INTO tiles (zoom_level, tile_column, tile_row, tile_data) SELECT zoom_level, tile_column, tile_row, tile_data FROM source.tiles WHERE zoom_level = %s AND tile_column = %s AND tile_row = %s" % tile)
         conn.commit()
-        logger.debug("building index")
         cur.execute("CREATE UNIQUE INDEX tile_index on tiles (zoom_level, tile_column, tile_row);")
         conn.commit()
-        logger.debug("creating metadata table")
         cur.execute("CREATE TABLE metadata AS SELECT name, value FROM source.metadata WHERE name NOT IN ('bounds', 'center');")
         cur.execute("INSERT INTO metadata (name, value) VALUES ('bounds', ?)", (bbox_str,))
         cur.execute("INSERT INTO metadata (name, value) VALUES ('center', ?)", (center_str,))
         conn.commit()
-        logger.debug("detach source db")
         cur.execute("DETACH DATABASE source;")
         conn.commit()
     except Exception as e:
@@ -203,6 +198,7 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
             cwd = "."
         tile_list = run_cmd(args, i, False, cwd, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"}, True)
         tile_list = convert_tile_list(tile_list)
+        logger.debug("Writing tiles and metadata to {}".format(output_filename))
         create_mbtiles(input_path, output_filename, tile_list, bbox)
     except subprocess.CalledProcessError:
         error = True
