@@ -137,7 +137,7 @@ def convert_tile_list(tile_list):
     return result
 
 
-def create_mbtiles(input_path, output_path, tile_list, bbox):
+def create_mbtiles(input_path, output_path, tile_list, bbox, sqlite_charset):
     """Create an MBTiles by copying tiles and metadata from an existing database.
     """
     if os.path.isfile(output_path):
@@ -152,6 +152,7 @@ def create_mbtiles(input_path, output_path, tile_list, bbox):
         conn = sqlite3.connect(output_path)
         cur = conn.cursor()
         #TODO escape filename
+        cur.execute("PRAGMA encoding = '{}';".format(sqlite_charset))
         cur.execute("PRAGMA auto_vacuum = 0;")
         cur.execute("PRAGMA cache_size = -1048576;") # 2 GiB cache
         cur.execute("PRAGMA journal_mode = OFF;")
@@ -182,7 +183,7 @@ def create_mbtiles(input_path, output_path, tile_list, bbox):
         sys.exit(1)
 
 
-def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version):
+def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version, sqlite_charset):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
@@ -199,7 +200,7 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
         tile_list = run_cmd(args, i, False, cwd, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"}, True)
         tile_list = convert_tile_list(tile_list)
         logger.debug("Writing tiles and metadata to {}".format(output_filename))
-        create_mbtiles(input_path, output_filename, tile_list, bbox)
+        create_mbtiles(input_path, output_filename, tile_list, bbox, sqlite_charset)
     except subprocess.CalledProcessError:
         error = True
     finally:
@@ -210,7 +211,7 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
     return True
 
 
-def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version):
+def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version, sqlite_charset):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
@@ -254,7 +255,7 @@ def find_region(geojson_data, region_id):
 
 parser = argparse.ArgumentParser(description="Split a vector tile set (in z/x/y.pbf structure) into multiple tile sets.")
 parser.add_argument("-c", "--config", type=argparse.FileType("r"), required=True, help="Configuration file in YAML format")
-parser.add_argument("-f", "--output-format", type=str, required=True, help="Output format ('mbtiles' or 'tar.gz')")
+parser.add_argument("-f", "--format", type=str, required=True, help="Input and output format ('mbtiles' for MBTiles input and output, 'tar.gz' for input from directory and output to .tar.gz)")
 parser.add_argument("-g", "--geojson", type=argparse.FileType("r"), required=True, help="GeoJSON index file containing clipping polygons for all regions.")
 parser.add_argument("-i", "--input", type=str, required=True, help="Directory to load shape files from")
 parser.add_argument("-l", "--log-level", help="log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)", default="INFO", type=str)
@@ -281,13 +282,13 @@ if args.minzoom < 0 or args.maxzoom > 20 or args.minzoom > args.maxzoom:
     logging.error("Zoom levels out of range or swapped")
     exit(1)
 
-output_format = args.output_format.lower()
+output_format = args.format.lower()
 if output_format not in ["mbtiles", "tar.gz"]:
     logging.error("Output format must be either 'mbtiles' or 'tar.gz'")
     exit(1)
 
 for d in [args.input, args.output]:
-    if not os.path.isdir(d) and (d != args.input or args.output_format == "tar.gz"):
+    if not os.path.isdir(d) and (d != args.input or args.format == "tar.gz"):
         logging.error("{} is not a directory.".format(d))
         exit(1)
 
@@ -308,6 +309,24 @@ if len(geojson_data.get("features", [])) == 0:
     logging.error("GeoJSON is empty or invalid")
     exit(1)
 
+charset = None
+if output_format == "mbtiles":
+    logging.debug("Get encoding of input file")
+    conn = None
+    cur = None
+    try:
+        conn = sqlite3.connect(args.input)
+        cur = conn.execute("PRAGMA encoding;")
+        charset = cur.fetchone()[0]
+    except Exception as e:
+        logger.exception(e)
+        exit(1)
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
 tasks = []
 i = 1
 for polygon in requested_regions:
@@ -321,7 +340,7 @@ for polygon in requested_regions:
         else:
             logger.warning(msg)
     polygon_path = polygon["path"]
-    tasks.append((i, args.tilelist, args.input, args.output, polygon_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix, shortbread_version))
+    tasks.append((i, args.tilelist, args.input, args.output, polygon_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix, shortbread_version, charset))
     i += 1
 
 logger.info("Processing {} regions".format(len(tasks)))
