@@ -94,3 +94,7 @@ This repository contains an example configuration to split a world-wide set of v
 * SQLite3 bindings for Python
 * [Polygon-To-Tile-List](https://github.com/Geofabrik/polygon-to-tile-list)
 * Unix utilites `tar` and `gzip`
+
+## License
+
+This project is licensed under the terms of General Public License version 2 or newer.
