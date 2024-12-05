@@ -275,7 +275,7 @@ parser = argparse.ArgumentParser(description="Split a vector tile set (in z/x/y.
 parser.add_argument("-c", "--config", type=argparse.FileType("r"), required=True, help="Configuration file in YAML format")
 parser.add_argument("-f", "--format", type=str, required=True, help="Input and output format ('mbtiles' for MBTiles input and output, 'tar.gz' for input from directory and output to .tar.gz)")
 parser.add_argument("-g", "--geojson", type=argparse.FileType("r"), required=True, help="GeoJSON index file containing clipping polygons for all regions.")
-parser.add_argument("-i", "--input", type=str, required=True, help="Directory to load shape files from")
+parser.add_argument("-i", "--input", type=str, required=True, help="Path to input tileset")
 parser.add_argument("-l", "--log-level", help="log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)", default="INFO", type=str)
 parser.add_argument("-o", "--output", type=str, required=True, help="Output base directory")
 parser.add_argument("-p", "--processes", type=int, default=8, help="Number of parallel processes")

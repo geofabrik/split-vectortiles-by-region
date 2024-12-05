@@ -27,7 +27,7 @@ Required arguments:
   -g GEOJSON, --geojson GEOJSON
                         GeoJSON index file containing clipping polygons for all regions.
   -i INPUT, --input INPUT
-                        Directory to load shape files from
+                        Path to input tileset
   -o OUTPUT, --output OUTPUT
                         Output base directory
   -t TILELIST, --tilelist TILELIST
