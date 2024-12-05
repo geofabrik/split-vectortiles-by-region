@@ -183,16 +183,21 @@ def create_mbtiles(input_path, output_path, tile_list, bbox, sqlite_charset):
         sys.exit(1)
 
 
-def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version, sqlite_charset):
+def get_output_path(output_base_dir, file_name_template, suffix, region_path):
+    path = "{}.{}".format(file_name_template.format(region_path), suffix)
+    return os.path.join(output_base_dir, path)
+
+
+def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir, region_path, geojson_feature, minzoom, maxzoom, suffix, path_template, sqlite_charset):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
     try:
         geojson_path = write_geojson_feature(geojson_feature)
         bbox = get_bbox(geojson_feature["geometry"])
-        output_filename = "{}-shortbread-{}.mbtiles".format(os.path.join(output_base_dir, output_path), shortbread_version)
+        output_filename = get_output_path(output_base_dir, path_template, "mbtiles", region_path)
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-        logger.info("{}: Creating tile set {}".format(i, output_path))
+        logger.info("{}: Creating tile set {}".format(i, region_path))
         args = [polygon_to_tile_list, "-g", geojson_path, "-z", str(minzoom), "-Z", str(maxzoom)]
         cwd = os.path.dirname(input_path)
         if cwd == "":
@@ -207,18 +212,18 @@ def create_tileset_mbtiles(i, polygon_to_tile_list, input_path, output_base_dir,
         delete_if_exists(geojson_path)
     if error:
         exit(1)
-    logger.info("{}: Completed tile set {}".format(i, output_path))
+    logger.info("{}: Completed tile set {}".format(i, region_path))
     return True
 
 
-def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, output_path, geojson_feature, minzoom, maxzoom, suffix, shortbread_version, sqlite_charset):
+def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, region_path, geojson_feature, minzoom, maxzoom, suffix, path_template, sqlite_charset):
     # Write GeoJSON feature to temporary file
     error = False
     geojson_path = None
     try:
         geojson_path = write_geojson_feature(geojson_feature)
         metadata_path = write_metadata_json(input_dir, geojson_feature["geometry"])
-        output_filename = "{}-shortbread-{}.tar.gz".format(os.path.join(output_base_dir, output_path), shortbread_version)
+        output_filename = get_output_path(output_base_dir, path_template, "tar.gz", region_path)
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         opts = {
             "polygon_to_tile_list": shlex.quote(os.path.abspath(polygon_to_tile_list)),
@@ -231,7 +236,7 @@ def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, ou
             "maxzoom": shlex.quote(str(maxzoom)),
             "suffix": shlex.quote(suffix),
         }
-        logger.info("{}: Creating tile set {}".format(i, output_path))
+        logger.info("{}: Creating tile set {}".format(i, region_path))
         args = "{polygon_to_tile_list} -c -n -a {metadata_path} -g {geojson_path} -z {minzoom} -Z {maxzoom} -s {suffix} | tar --null -c --owner=0 --group=0 --transform='flags=r;s|{metadata_path_for_regex}|metadata.json|' --files-from=- | gzip -1 > {output_filename}".format(**opts)
         run_cmd(args, i, True, input_dir, {"OGR_ENABLE_PARTIAL_REPROJECTION": "TRUE"})
     except subprocess.CalledProcessError:
@@ -241,7 +246,7 @@ def create_tileset_targz(i, polygon_to_tile_list, input_dir, output_base_dir, ou
         delete_if_exists(metadata_path)
     if error:
         exit(1)
-    logger.info("{}: Completed tile set {}".format(i, output_path))
+    logger.info("{}: Completed tile set {}".format(i, region_path))
     return True
 
 
@@ -297,8 +302,8 @@ if args.suffix is not None and not args.suffix.startswith("."):
 
 logging.debug("Loading configuration")
 config = yaml.safe_load(args.config)
-shortbread_version = config["shortbread_version"]
 requested_regions = config["polygons"]
+path_template = config["path_template"]
 if type(requested_regions) is not list or len(requested_regions) == 0:
     logging.error("Configuration is invalid, 'polyogns' not found or an empty list.")
     exit(1)
@@ -329,6 +334,8 @@ if output_format == "mbtiles":
 
 tasks = []
 i = 1
+# regions_paths to check them for uniqueness
+region_paths = set()
 for polygon in requested_regions:
     polygon_id = polygon["id"]
     geojson_feature = find_region(geojson_data, polygon_id)
@@ -336,11 +343,14 @@ for polygon in requested_regions:
         msg = "Region {} not found among GeoJSON features."
         if args.strict:
             logger.error(msg)
-            exit(1)
+            sys.exit(1)
         else:
             logger.warning(msg)
-    polygon_path = polygon["path"]
-    tasks.append((i, args.tilelist, args.input, args.output, polygon_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix, shortbread_version, charset))
+    region_path = polygon["region_path"]
+    if region_path in region_paths:
+        logger.error("Output path {} is used twice.".format(get_output_path(args.output, path_template, args.suffix, region_path)))
+        sys.exit(1)
+    tasks.append((i, args.tilelist, args.input, args.output, region_path, geojson_feature, args.minzoom, args.maxzoom, args.suffix, path_template, charset))
     i += 1
 
 logger.info("Processing {} regions".format(len(tasks)))
