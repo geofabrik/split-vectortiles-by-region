@@ -1,4 +1,8 @@
-path_template: "{{ region_path }}-shortbread-1.0"
+# The last component of the path needs to be duplicated due to the changed
+# structure on Geofabrik Download server.
+# See https://blog.geofabrik.de/index.php/2026/11/19/download-server-housekeeping/
+# for details.
+path_template: "{{ region_path | duplicate_last_path_component }}-shortbread-1.0"
 
 polygons:
   - id: "afghanistan"

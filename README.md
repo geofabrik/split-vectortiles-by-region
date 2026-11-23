@@ -77,6 +77,10 @@ The YAML file must be a mapping with the following properties:
   * `id`: unique ID of the clipping (multi)polygon; there must be a (multi)polygon feature in the GeoJSON file with its property `id` set to the same string.
   * `region_path`: path (can include subdirectories and directory separators like slashes) to be used in `path_template`. This key has to be used in the `path_template` to generate unique paths per tile set.
 
+Following custom Jinja2 filters are available for `path_template`:
+
+* `duplicate_last_path_component`: Treats the provided argument as a path and returns it with the last path component being duplicated.
+
 ### GeoJSON file
 
 The GeoJSON file holds the geometries for all clipping (multi)polygons. There must be a feature in the GeoJSON file for each tile set defined in the YAML file. GeoJSON features and tile sets are matched by the `id` property in the YAML file and the property `id` in the GeoJSON file.

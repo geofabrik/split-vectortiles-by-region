@@ -19,6 +19,7 @@ import json
 import logging
 import multiprocessing
 import os
+import pathlib
 import shlex
 import sqlite3
 import subprocess
@@ -197,12 +198,21 @@ def create_mbtiles(input_path, output_path, tile_list, bbox, sqlite_charset):
         sys.exit(1)
 
 
+def duplicate_last_path_component(input_path: str):
+    """Duplicate the last component of the provided path.
+    """
+    p = pathlib.PurePath(input_path)
+    p = p / p.parts[-1]
+    return str(p)
+
+
 def get_jinja_template(file_name_template):
     # Jinja2 related stuff needs to be done here because we get "TypeError: cannot pickle 'weakref.ReferenceType' object" otherwise.
     jinja2_env = jinja2.Environment(
             autoescape=False,
             loader=jinja2.DictLoader({"path_template": file_name_template})
     )
+    jinja2_env.filters["duplicate_last_path_component"] = duplicate_last_path_component
     return jinja2_env.get_template("path_template")
 
 
