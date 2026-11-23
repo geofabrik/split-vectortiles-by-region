@@ -57,7 +57,7 @@ split-vectortiles-by-region is configured using a YAML and a GeoJSON file.
 Example:
 
 ```yaml
-path_template: "{region_path}-shortbread-1.0"
+path_template: "{{region_path}}-shortbread-1.0"
 
 polygons:
   - id: "afghanistan"
@@ -72,7 +72,7 @@ polygons:
 
 The YAML file must be a mapping with the following properties:
 
-* `path_template`: A Template (as Python string template) to create the path where a tarball/MBTiles file is to be written within the selected target base directory. A file name suffix is added automatically depending on the output format.
+* `path_template`: A Jinja2 template to create the path where a tarball/MBTiles file is to be written within the selected target base directory. A file name suffix is added automatically depending on the output format. The only available variable is `region_path` which is set in the `polygons` array for each region.
 * `polygons`: This list of mappings defines which tile packages should be created. Each entry must have the following properties:
   * `id`: unique ID of the clipping (multi)polygon; there must be a (multi)polygon feature in the GeoJSON file with its property `id` set to the same string.
   * `region_path`: path (can include subdirectories and directory separators like slashes) to be used in `path_template`. This key has to be used in the `path_template` to generate unique paths per tile set.

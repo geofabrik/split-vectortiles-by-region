@@ -14,6 +14,7 @@
 # GNU General Public License for more details.
 
 import argparse
+import jinja2
 import json
 import logging
 import multiprocessing
@@ -196,8 +197,17 @@ def create_mbtiles(input_path, output_path, tile_list, bbox, sqlite_charset):
         sys.exit(1)
 
 
+def get_jinja_template(file_name_template):
+    # Jinja2 related stuff needs to be done here because we get "TypeError: cannot pickle 'weakref.ReferenceType' object" otherwise.
+    jinja2_env = jinja2.Environment(
+            autoescape=False,
+            loader=jinja2.DictLoader({"path_template": file_name_template})
+    )
+    return jinja2_env.get_template("path_template")
+
+
 def get_output_path(output_base_dir, file_name_template, suffix, region_path):
-    path = "{}.{}".format(file_name_template.format(region_path), suffix)
+    path = "{}.{}".format(get_jinja_template(file_name_template).render(region_path=region_path), suffix)
     return os.path.join(output_base_dir, path)
 
 
